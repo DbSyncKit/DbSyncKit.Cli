@@ -12,7 +12,7 @@ class Program
         app.Configure(config =>
         {
             config.AddCommand<InitCommand>("init").WithDescription("Initialize DbSyncKit");
-            //config.AddCommand<ConfigureCommand>("config").WithDescription("Configure DbSyncKit");
+            config.AddCommand<ConfigureCommand>("config").WithDescription("Configure DbSyncKit");
         });
 
         return app.Run(args);
