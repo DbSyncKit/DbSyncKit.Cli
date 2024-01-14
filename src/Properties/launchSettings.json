@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "DbSyncKit.Cli": {
+      "commandName": "Project"
+    },
+    "Init": {
+      "commandName": "Project",
+      "commandLineArgs": "init"
+    },
+    "config": {
+      "commandName": "Project",
+      "commandLineArgs": "config"
+    }
+  }
+}
