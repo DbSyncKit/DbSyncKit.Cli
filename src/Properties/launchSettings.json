@@ -10,6 +10,10 @@
     "config": {
       "commandName": "Project",
       "commandLineArgs": "config"
+    },
+    "status": {
+      "commandName": "Project",
+      "commandLineArgs": "status"
     }
   }
 }
