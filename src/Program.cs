@@ -14,6 +14,7 @@ class Program
             config.SetApplicationName("DbSyncKit");
             config.AddCommand<InitCommand>("init").WithDescription("Initialize DbSyncKit");
             config.AddCommand<ConfigureCommand>("config").WithDescription("Configure DbSyncKit");
+            config.AddCommand<StatusCommand>("status").WithDescription("status");
         });
 
         return app.Run(args);
