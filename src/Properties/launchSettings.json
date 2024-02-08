@@ -9,7 +9,7 @@
     },
     "config": {
       "commandName": "Project",
-      "commandLineArgs": "config"
+      "commandLineArgs": "config create MSSQL -h"
     },
     "status": {
       "commandName": "Project",

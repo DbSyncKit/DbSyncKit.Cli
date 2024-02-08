@@ -6,11 +6,22 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 using DbSyncKit.Cli.Extensions;
 using DbSyncKit.DB.Enum;
+using DbSyncKit.Cli.Lang;
+using DbSyncKit.Cli.Manager;
 
 namespace DbSyncKit.Cli.Commands
 {
-    public class ConfigureCommand : Command<ConfigureCommand.Settings>
+    public partial class ConfigureCommand : Command<ConfigureCommand.Settings>
     {
+        private readonly English _language;
+        private readonly ConfigManager _configManager;
+
+        public ConfigureCommand(English lang, ConfigManager config)
+        {
+            _language = lang;
+            _configManager = config;
+        }
+
         #region Settings
 
         public class Settings : CommandSettings { }
@@ -21,96 +32,86 @@ namespace DbSyncKit.Cli.Commands
 
         public override int Execute(CommandContext context, Settings settings)
         {
-            var dbSyncKitFolder = Path.Combine(Environment.CurrentDirectory, ".DbSyncKit");
-            if (!Directory.Exists(dbSyncKitFolder))
+            if (!Directory.Exists(_configManager.DbSyncKitFolder))
             {
-                LoggerExtensions.Error("DbSyncKit is not initialized!");
+                LoggerExtensions.Error(_language.E_Initilized);
                 return 0;
             }
 
-            var configFile = Path.Combine(dbSyncKitFolder, "config.json");
-            var configurations = ReadConfigurations(configFile);
-
+            var configFile = _configManager.DbSyncKitConfig;
+            var configurations = _configManager.configuration;
+            Dictionary<string, Action> options = ConfigureOptionsInvokable(configFile, configurations);
 
             while (true)
             {
                 AnsiConsole.Clear();
-                DisplayConfigurationsTable(configurations.DatabaseConfigurations);
 
-                var action = SelectConfigurationAction();
+                _configManager.DisplayConfigurationsTable();
 
-                switch (action)
+                string action = SelectConfigurationAction();
+
+                if (options.TryGetValue(action, out var OptionsMethod))
                 {
-                    case "Edit Existing Configuration":
-                        var selectedConfig = SelectConfiguration(configurations.DatabaseConfigurations);
-                        if (selectedConfig != null)
-                        {
-                            EditConfiguration(selectedConfig);
-                            SaveConfigurations(configurations, configFile);
-
-                        }
-                        break;
-
-                    case "Add New Configuration":
-                        AskQuestionsAndAddConfiguration(configurations, configFile);
-                        DisplayConfigurationsTable(configurations.DatabaseConfigurations); // Display updated list
-                        break;
-
-                    case "Change Default Database":
-                        var defaultConfig = SelectConfiguration(configurations.DatabaseConfigurations);
-                        if (defaultConfig != null)
-                        {
-                            ChangeDefaultConfiguration(configurations, defaultConfig);
-                            SaveConfigurations(configurations, configFile);
-                        }
-                        break;
-                    case "Configure Data Contract related Configuration":
-                        ContactRelatedConfigration(configurations);
-                        SaveConfigurations(configurations, configFile);
-                        break;
-
-                    case "Exit":
-                        // User chose to exit
-                        SaveConfigurations(configurations, configFile);
-                        return 0;
+                    OptionsMethod.Invoke();
                 }
+                else
+                    break;
+
             }
+
+            options[_language.T_Exit].Invoke();
+            return 0;
         }
 
         #endregion
 
-        #region Configuration Management
+        #region Configurations
 
-        private DatabaseConfiguration ReadConfigurations(string configFile)
+        private Dictionary<string, Action> ConfigureOptionsInvokable(string configFile, DatabaseConfiguration configurations)
         {
-            try
+            return new Dictionary<string, Action>
             {
-                if (File.Exists(configFile))
-                {
-                    var json = File.ReadAllText(configFile);
-                    return JsonConvert.DeserializeObject<DatabaseConfiguration>(json);
+                { _language.C_EditExistingConfig, () =>
+                    {
+                        var selectedConfig = SelectConfiguration(configurations.DatabaseConfigurations);
+                        if (selectedConfig != null)
+                        {
+                            EditConfiguration(selectedConfig);
+                            _configManager.SaveConfigurations(configurations, configFile);
+                        }
+                    }
+                },
+                { _language.C_NewConfig, () =>
+                    {
+                        AskQuestionsAndAddConfiguration(configurations, configFile);
+                        _configManager.DisplayConfigurationsTable();
+                    }
+                },
+                { _language.C_ChangeDefaultDB, () =>
+                    {
+                        var defaultConfig = SelectConfiguration(configurations.DatabaseConfigurations);
+                        if (defaultConfig != null)
+                        {
+                            ChangeDefaultConfiguration(configurations, defaultConfig);
+                            _configManager.SaveConfigurations(configurations, configFile);
+                        }
+                    }
+                },
+                { _language.C_ContractConfig, () =>
+                    {
+                        ContactRelatedConfigration(configurations);
+                        _configManager.SaveConfigurations(configurations, configFile);
+                    }
+                },
+                { _language.T_Exit, () =>
+                    {
+                        _configManager.SaveConfigurations(configurations, configFile);
+                        Environment.Exit(0);
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                LoggerExtensions.Error($"Failed to read configuration file: {ex.Message}");
-            }
-
-            return new DatabaseConfiguration();
+            };
         }
 
-        private void SaveConfigurations(DatabaseConfiguration dbConfig, string configFile)
-        {
-            try
-            {
-                var json = JsonConvert.SerializeObject(dbConfig, Formatting.Indented);
-                File.WriteAllText(configFile, json);
-            }
-            catch (Exception ex)
-            {
-                LoggerExtensions.Error($"Failed to save configuration file: {ex.Message}");
-            }
-        }
 
         #endregion
 
@@ -119,35 +120,24 @@ namespace DbSyncKit.Cli.Commands
         private string SelectConfigurationAction()
         {
             var prompt = new SelectionPrompt<string>()
-                .Title("[yellow]Select an Action:[/]")
-                .AddChoices("Edit Existing Configuration", "Add New Configuration", "Change Default Database", "Configure Data Contract related Configuration", "Exit");
+                .Title($"[yellow]{_language.Q_Select_Action}:[/]")
+                .AddChoices(_language.C_EditExistingConfig, _language.C_NewConfig, _language.C_ChangeDefaultDB, _language.C_ContractConfig, _language.T_Exit);
 
             return AnsiConsole.Prompt(prompt);
         }
 
-        private Configuration SelectConfiguration(List<Configuration> configurations)
+        private Configuration? SelectConfiguration(List<Configuration> configurations)
         {
-            var prompt = new SelectionPrompt<Configuration>()
-                .Title("[yellow]Select a Configuration:[/]")
+            var prompt = new SelectionPrompt<string>()
+                .Title($"[yellow]{_language.Q_Select_Config}:[/]")
                 .PageSize(10);
 
-            prompt.AddChoices(configurations);
+            prompt.AddChoices(configurations.Select(config => config.Guid));
+            prompt.AddChoices(_language.T_Back);
 
-            return AnsiConsole.Prompt(prompt);
-        }
+            var response = AnsiConsole.Prompt(prompt);
 
-        private void DisplayConfigurationsTable(List<Configuration> configurations)
-        {
-            var table = new Table();
-            table.AddColumn("[yellow]Provider[/]");
-            table.AddColumn("[yellow]Database Name[/]");
-
-            foreach (var config in configurations)
-            {
-                table.AddRow(config.DatabaseProvider.ToString(), config.Database ?? config.InitialCatalog!);
-            }
-
-            AnsiConsole.Write(table);
+            return configurations.FirstOrDefault(config => config.Guid == response);
         }
 
         #endregion
@@ -158,10 +148,10 @@ namespace DbSyncKit.Cli.Commands
         {
             LoggerExtensions.Debug($"Editing configuration for {config.DatabaseProvider} - {config.Database}...");
 
-            DisplayConfigurationTable(config);
+            _configManager.DisplayConfigurationTable(config);
 
 
-                //config.DatabaseProvider;
+            //config.DatabaseProvider;
             switch (config.DatabaseProvider)
             {
                 case DatabaseProvider.MSSQL:
@@ -174,64 +164,12 @@ namespace DbSyncKit.Cli.Commands
                     AskPostgreSQLQuestions(config);
                     break;
                 default:
-                    LoggerExtensions.Error("Provider Does not exists");
+                    LoggerExtensions.Error(_language.E_PrividerIssue);
                     break;
             }
-            
-
-            LoggerExtensions.Success("Configuration updated successfully!");
-        }
-
-        private void DisplayConfigurationTable(Configuration config)
-        {
-            var table = new Table();
-            table.AddColumn("[yellow]Property[/]");
-            table.AddColumn("[yellow]Value[/]");
-
-            table.AddRow("GUID",config.Guid);
-            table.AddRow("DatabaseProvider", config.DatabaseProvider.ToString());
-
-            if (config.UseServerAddress.GetValueOrDefault())
-            {
-                if(config.Server != null)
-                    table.AddRow("Server", config.Server);
-
-                if(config.Database != null)
-                    table.AddRow("Database", config.Database);
-            }
-            else
-            {
-                if (config.DataSource != null)
-                    table.AddRow("DataSource", config.DataSource);
-
-                if (config.InitialCatalog != null)
-                    table.AddRow("InitialCatalog", config.InitialCatalog);
-            }
-
-            if(config.DatabaseProvider == DatabaseProvider.MSSQL)
-                table.AddRow("IntegratedSecurity", config.IntegratedSecurity.GetValueOrDefault().ToString());
-
-            if (config.UserID != null)
-                table.AddRow($"UserID", config.UserID);
-
-            if (config.Password != null)
-                table.AddRow("Password", config.Password);
-
-            if (config.Port != 0)
-                table.AddRow($"Port", config.Port.ToString());
 
 
-            AnsiConsole.Write(table);
-        }
-
-        private string SelectPropertyToEdit()
-        {
-            var prompt = new SelectionPrompt<string>()
-                .Title("[yellow]Select a Property to Edit:[/]")
-                .PageSize(5)
-                .AddChoices("Provider", "UseServerAddress", "Server", /* Add other properties... */ "Exit");
-
-            return AnsiConsole.Prompt(prompt);
+            LoggerExtensions.Success(_language.M_ConfigUpdated);
         }
 
         #endregion
@@ -246,15 +184,16 @@ namespace DbSyncKit.Cli.Commands
             configurations.DatabaseConfigurations.Add(newConfig);
             configurations.DefaultConfigurationGuid = newConfig.Guid;
 
-            SaveConfigurations(configurations, configFile);
+            _configManager.SaveConfigurations(configurations, configFile);
 
-            LoggerExtensions.Success("New configuration added successfully!");
+            LoggerExtensions.Success(_language.M_ConfigAdded);
         }
 
         private Configuration AskQuestions()
         {
             var config = new Configuration();
             config.Guid = Guid.NewGuid().ToString();
+
             // Ask for general database configuration
             config.DatabaseProvider = AskDatabaseProvider();
 
@@ -281,7 +220,7 @@ namespace DbSyncKit.Cli.Commands
         {
             return AnsiConsole.Prompt(
                 new SelectionPrompt<DatabaseProvider>()
-                    .Title("[yellow]Choose a Database Provider:[/]")
+                    .Title($"[yellow]{_language.Q_Select_Provider}:[/]")
                     .PageSize(3)
                     .AddChoices(DatabaseProvider.MSSQL, DatabaseProvider.MySQL, DatabaseProvider.PostgreSQL)
             );
@@ -289,57 +228,57 @@ namespace DbSyncKit.Cli.Commands
 
         private void AskMSSQLQuestions(Configuration config)
         {
-            config.UseServerAddress = ConfirmWithDefault("[yellow]Do you want to use server address?[/]", config.UseServerAddress);
+            config.UseServerAddress = PromptExtension.ConfirmWithDefault("[yellow]Do you want to use server address?[/]", config.UseServerAddress);
 
             if (config.UseServerAddress.GetValueOrDefault())
             {
-                config.Server = PromptWithDefault("[yellow]Enter MSSQL Server name or IP address:[/]", config.Server!);
-                config.Database = PromptWithDefault("[yellow]Enter MSSQL Database name:[/]", config.Database!);
+                config.Server = PromptExtension.PromptWithDefault("[yellow]Enter MSSQL Server name or IP address:[/]", config.Server!);
+                config.Database = PromptExtension.PromptWithDefault("[yellow]Enter MSSQL Database name:[/]", config.Database!);
             }
             else
-            {                
-                config.DataSource = PromptWithDefault("[yellow]Enter MSSQL Data source or IP address:[/]", config.DataSource!);
-                config.InitialCatalog = PromptWithDefault("[yellow]Enter MSSQL Initial catalog or Database name:[/]", config.InitialCatalog!);
+            {
+                config.DataSource = PromptExtension.PromptWithDefault("[yellow]Enter MSSQL Data source or IP address:[/]", config.DataSource!);
+                config.InitialCatalog = PromptExtension.PromptWithDefault("[yellow]Enter MSSQL Initial catalog or Database name:[/]", config.InitialCatalog!);
             }
 
-            config.IntegratedSecurity = ConfirmWithDefault("[yellow]Use integrated security?[/]", config.IntegratedSecurity);
+            config.IntegratedSecurity = PromptExtension.ConfirmWithDefault("[yellow]Use integrated security?[/]", config.IntegratedSecurity);
 
             if (!config.IntegratedSecurity.GetValueOrDefault())
             {
-                config.UserID = PromptWithDefault("[yellow]Enter MSSQL User ID:[/]", config.UserID!);
+                config.UserID = PromptExtension.PromptWithDefault("[yellow]Enter MSSQL User ID:[/]", config.UserID!);
 
-                config.Password = PromptWithDefault("[yellow]Enter MSSQL Password:[/]", config.Password!);
+                config.Password = PromptExtension.PromptWithDefault("[yellow]Enter MSSQL Password:[/]", config.Password!);
             }
         }
 
         private void AskMySQLQuestions(Configuration config)
         {
-            config.Server = PromptWithDefault("[yellow]Enter MySQL Server name or IP address:[/]", config.Server!);
-            config.Database = PromptWithDefault("[yellow]Enter MySQL Database name:[/]", config.Database!);
+            config.Server = PromptExtension.PromptWithDefault("[yellow]Enter MySQL Server name or IP address:[/]", config.Server!);
+            config.Database = PromptExtension.PromptWithDefault("[yellow]Enter MySQL Database name:[/]", config.Database!);
 
             if (config.Port == default(int))
                 config.Port = 3306;
-            config.Port = PromptWithDefault("[yellow]Enter MySQL Port number:[/]", config.Port);
+            config.Port = PromptExtension.PromptWithDefault("[yellow]Enter MySQL Port number:[/]", config.Port);
 
-            config.UserID = PromptWithDefault("[yellow]Enter MySQL User:[/]", config.UserID!);
+            config.UserID = PromptExtension.PromptWithDefault("[yellow]Enter MySQL User:[/]", config.UserID!);
 
-            config.Password = PromptWithDefault("[yellow]Enter MySQL Password:[/]", config.Password!,true);
+            config.Password = PromptExtension.PromptWithDefault("[yellow]Enter MySQL Password:[/]", config.Password!, true);
 
         }
 
         private void AskPostgreSQLQuestions(Configuration config)
         {
-            config.Server = PromptWithDefault("[yellow]Enter PostgreSQL Server name or IP address:[/]", config.Server!);
-            config.Database = PromptWithDefault("[yellow]Enter PostgreSQL Database name:[/]", config.Database!);
+            config.Server = PromptExtension.PromptWithDefault("[yellow]Enter PostgreSQL Server name or IP address:[/]", config.Server!);
+            config.Database = PromptExtension.PromptWithDefault("[yellow]Enter PostgreSQL Database name:[/]", config.Database!);
 
             if (config.Port == default(int))
                 config.Port = 5432;
 
-            config.Port = PromptWithDefault("[yellow]Enter PostgreSQL Port number:[/]", config.Port);
+            config.Port = PromptExtension.PromptWithDefault("[yellow]Enter PostgreSQL Port number:[/]", config.Port);
 
-            config.UserID = PromptWithDefault("[yellow]Enter PostgreSQL User:[/]", config.UserID!);
+            config.UserID = PromptExtension.PromptWithDefault("[yellow]Enter PostgreSQL User:[/]", config.UserID!);
 
-            config.Password = PromptWithDefault("[yellow]Enter PostgreSQL Password:[/]",config.Password!,true);
+            config.Password = PromptExtension.PromptWithDefault("[yellow]Enter PostgreSQL Password:[/]", config.Password!, true);
         }
 
         #endregion
@@ -348,7 +287,6 @@ namespace DbSyncKit.Cli.Commands
 
         private void ChangeDefaultConfiguration(DatabaseConfiguration configurations, Configuration selectedConfig)
         {
-            // Implement logic to set the selected configuration as default
             configurations.DefaultConfigurationGuid = selectedConfig.Guid;
             LoggerExtensions.Success($"Default configuration changed to {selectedConfig.DatabaseProvider} - {selectedConfig.Database}");
         }
@@ -361,69 +299,6 @@ namespace DbSyncKit.Cli.Commands
         private void ContactRelatedConfigration(DatabaseConfiguration configurations)
         {
 
-        }
-
-        #endregion
-
-        #region Helper
-        private T PromptWithDefault<T>(string promptText, T defaultValue, bool isPassword = false) where T : notnull
-        {
-            var prompt = new TextPrompt<T>(promptText);
-            if (!EqualityComparer<T>.Default.Equals(defaultValue, default))
-                prompt.DefaultValue(defaultValue);
-
-            if (isPassword)
-            {
-                prompt.Secret();
-                prompt.PromptStyle("red");
-                prompt.AllowEmpty();
-            }
-
-
-            return AnsiConsole.Prompt(prompt);
-        }
-
-        private bool ConfirmWithDefault(string promptText, bool? defaultValue)
-        {
-            var prompt = new ConfirmationPrompt(promptText);
-
-            if (defaultValue.HasValue)
-                prompt.DefaultValue = defaultValue.Value;
-
-            return AnsiConsole.Prompt(prompt);
-        }
-
-        #endregion
-
-        #region Configuration Classes
-
-        private class DatabaseConfiguration
-        {
-            public List<Configuration> DatabaseConfigurations { get; set; } = new List<Configuration>();
-            public string? DefaultConfigurationGuid { get; set; }
-
-            public string? DefaultDataContractPath { get; set; }
-        }
-
-        private class Configuration
-        {
-            public string Guid { get; set; }
-            public DatabaseProvider DatabaseProvider { get; set; }
-            public bool? UseServerAddress { get; set; }
-            public string? DataSource { get; set; }
-            public string? Server { get; set; }
-            public string? Database { get; set; }
-            public string? InitialCatalog { get; set; }
-            public string? UserID { get; set; }
-            public string? Password { get; set; }
-            public int Port { get; set; }
-            public bool? IntegratedSecurity { get; set; }
-
-            public override string ToString()
-            {
-                // Customize the string representation for each configuration
-                return $"{DatabaseProvider} - {Database ?? InitialCatalog}";
-            }
         }
 
         #endregion

@@ -21,7 +21,7 @@ namespace DbSyncKit.Cli.Extensions
             AnsiConsole.MarkupLine($"[bold gray]LOG:[/] {message}");
         }
 
-        /// <summary>
+        /// <summary> 
         /// Logs a success message with the "SUCCESS" tag and ANSI styling.
         /// </summary>
         /// <param name="message">The success message to log.</param>
