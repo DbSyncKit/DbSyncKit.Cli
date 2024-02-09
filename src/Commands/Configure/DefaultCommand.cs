@@ -1,15 +1,16 @@
 ﻿using Spectre.Console.Cli;
 
+using static DbSyncKit.Cli.Commands.ConfigureCommand;
+
 namespace DbSyncKit.Cli.Commands
 {
-    public partial class ConfigureCommand
-    {
-        #region Sub commands
+
+    #region Sub commands
 
         //[Command("default", Description = "Set default configuration")]
-        public class DefaultCommand : Command<Settings>
+        public class DefaultCommand : Command<ConfigureCommandSettings>
         {
-            public override int Execute(CommandContext context, Settings settings)
+            public override int Execute(CommandContext context, ConfigureCommandSettings settings)
             {
                 // Implement logic to set the default configuration
                 return 0;
@@ -17,5 +18,5 @@ namespace DbSyncKit.Cli.Commands
         }
 
         #endregion
-    }
+    
 }

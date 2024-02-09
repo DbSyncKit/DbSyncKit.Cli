@@ -13,7 +13,7 @@ namespace DbSyncKit.Cli.Commands.Configure.Create
 {
     public class MSSQLCreateCommand : Command<MSSQLCreateCommand.Settings>
     {
-        public class Settings : ConfigureCommand.CreateCommandSettings
+        public class Settings : CreateCommandSettings
         {
             [CommandOption("-s|--server")]
             [Description("Server name or IP address")]
@@ -29,7 +29,7 @@ namespace DbSyncKit.Cli.Commands.Configure.Create
 
             [CommandOption("-i|--integrated-security")]
             [Description("Use Windows Integrated security Default false")]
-            [DefaultValue(false)]
+            //[DefaultValue(false)]
             public bool IntegratedSecurity { get; set; }
 
             [CommandOption("-u|--user")]
@@ -43,16 +43,30 @@ namespace DbSyncKit.Cli.Commands.Configure.Create
 
         }
 
+        public ConfigManager ConfigManager { get; set; } = new();
+
         public override int Execute(CommandContext context, Settings settings)
         {
+            var config = new Configuration();
+            config.Database = settings.Database;
+            config.Server = settings.Server;
+            config.Port = settings.Port.GetValueOrDefault();
+            config.IntegratedSecurity = settings.IntegratedSecurity;
+            config.UserID = settings.Username;
+            config.Password = settings.Password;
+            config.Guid = Guid.NewGuid().ToString();
+            var configuration = ConfigManager.configuration;
 
+            configuration.DatabaseConfigurations.Add(config);
 
-            return 0;
+            ConfigManager.SaveConfigurations(configuration, ConfigManager.DbSyncKitConfig);
+
+            return 1;
         }
 
         public override ValidationResult Validate(CommandContext context, Settings settings)
         {
-            if (!settings.IntegratedSecurity && string.IsNullOrEmpty(settings.Username) || string.IsNullOrEmpty(settings.Password))
+            if (!settings.IntegratedSecurity && (string.IsNullOrEmpty(settings.Username) || string.IsNullOrEmpty(settings.Password)))
             {
                 return ValidationResult.Error("User & password is required when integrated security is false");
             }

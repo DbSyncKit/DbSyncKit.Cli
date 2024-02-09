@@ -11,7 +11,7 @@ using DbSyncKit.Cli.Manager;
 
 namespace DbSyncKit.Cli.Commands
 {
-    public partial class ConfigureCommand : Command<ConfigureCommand.Settings>
+    public partial class ConfigureCommand : Command<ConfigureCommand.ConfigureCommandSettings>
     {
         private readonly English _language;
         private readonly ConfigManager _configManager;
@@ -24,14 +24,26 @@ namespace DbSyncKit.Cli.Commands
 
         #region Settings
 
-        public class Settings : CommandSettings { }
+        public class ConfigureCommandSettings : CommandSettings
+        {
+        }
 
         #endregion
 
         #region Execution
 
-        public override int Execute(CommandContext context, Settings settings)
+        public override int Execute(CommandContext context, ConfigureCommandSettings settings)
         {
+            if(context.Name != "i")
+            {
+                LoggerExtensions.Message("To use User interactive mode add i at the end\n", "yellow", "Hidden");
+                LoggerExtensions.Message("DbSyncKit config i\n", "yellow", "Example");
+
+                return -1;
+
+            }
+            
+
             if (!Directory.Exists(_configManager.DbSyncKitFolder))
             {
                 LoggerExtensions.Error(_language.E_Initilized);

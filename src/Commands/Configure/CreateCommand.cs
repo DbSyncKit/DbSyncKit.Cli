@@ -5,13 +5,10 @@ using System.ComponentModel;
 
 namespace DbSyncKit.Cli.Commands
 {
-    public partial class ConfigureCommand
+    public class CreateCommandSettings : CommandSettings
     {
-        public class CreateCommandSettings : CommandSettings
-        {
-            [CommandOption("-i|--interactive")]
-            public bool Interactive { get; set; }
+        [CommandOption("-i|--interactive")]
+        public bool Interactive { get; set; }
 
-        }
     }
 }

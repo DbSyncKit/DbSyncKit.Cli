@@ -9,7 +9,19 @@
     },
     "config": {
       "commandName": "Project",
-      "commandLineArgs": "config create MSSQL -h"
+      "commandLineArgs": "config"
+    },
+    "config interactive": {
+      "commandName": "Project",
+      "commandLineArgs": "config i"
+    },
+    "config create MSSQL": {
+      "commandName": "Project",
+      "commandLineArgs": "config create MSSQL -s (localdb)\\MSSQLLocalDB -d SourceChinook -i"
+    },
+    "config list": {
+      "commandName": "Project",
+      "commandLineArgs": "config list"
     },
     "status": {
       "commandName": "Project",

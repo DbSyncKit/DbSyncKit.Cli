@@ -24,7 +24,7 @@ namespace DbSyncKit.Cli.Extensions
             config.AddBranch("config", command =>
             {
                 command.SetDefaultCommand<ConfigureCommand>();//.WithDescription("Configure DbSyncKit");
-
+                command.AddCommand<ConfigureCommand>("i").IsHidden().WithDescription("Configure DbSyncKit user interactive"); ;
                 command.AddCommand<ListCommand>("list").WithDescription("Lists all provider configured");
                 command.AddCreateBranchCommand();
             });

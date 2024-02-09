@@ -28,7 +28,7 @@ namespace DbSyncKit.Cli.Manager
 
             foreach (var config in configuration.DatabaseConfigurations)
             {
-                table.AddRow(config.Guid,config.DatabaseProvider.ToString(), config.Database ?? config.InitialCatalog!);
+                table.AddRow(config.Guid ?? string.Empty,config.DatabaseProvider.ToString(), config.Database ?? config.InitialCatalog ?? string.Empty);
             }
 
             AnsiConsole.Write(table);
@@ -82,6 +82,7 @@ namespace DbSyncKit.Cli.Manager
             {
                 var json = JsonConvert.SerializeObject(dbConfig, Formatting.Indented);
                 File.WriteAllText(configFile, json);
+                LoggerExtensions.Success("Settings Saved successfully");
             }
             catch (Exception ex)
             {

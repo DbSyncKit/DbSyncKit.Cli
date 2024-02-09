@@ -56,5 +56,11 @@ namespace DbSyncKit.Cli.Extensions
         {
             AnsiConsole.MarkupLine($"[bold blue]DEBUG:[/] {message}");
         }
+
+        public static void Message(string message, string color, string _event)
+        {
+            AnsiConsole.MarkupLine($"[bold {color}]{_event}:[/] {message}");
+
+        }
     }
 }

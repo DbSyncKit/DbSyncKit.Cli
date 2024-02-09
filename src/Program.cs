@@ -12,6 +12,7 @@ class Program
 {
     static int Main(string[] args)
     {
+
         var services = new ServiceCollection();
         services.AddScoped<English>();
         services.AddSingleton<ConfigManager>();
@@ -29,6 +30,13 @@ class Program
             //config.AddCommand<ConfigureCommand>("config").WithDescription("Configure DbSyncKit");
         });
 
-        return app.Run(args);
+        var result = app.Run(args);
+
+        if(result == -1)
+        {
+            return app.Run(args.Concat(new[] { "-h" }));
+        }
+
+        return result;
     }
 }
